@@ -282,7 +282,8 @@ ddSingle.MouseButton1Click:Connect(function()
     if EditPanel then EditPanel.Visible = false end
     updateSelectUI()
     SelectDropdown.Visible = false
-    TriBtn.Text = "▼"
+    dropdownOpen = false
+    TriBtn.Text = "▶"
     notify("Part Editor","Single Select")
 end)
 
@@ -291,15 +292,16 @@ ddMulti.MouseButton1Click:Connect(function()
     if EditPanel then EditPanel.Visible = false end
     updateSelectUI()
     SelectDropdown.Visible = false
-    TriBtn.Text = "▼"
+    dropdownOpen = false
+    TriBtn.Text = "▶"
     notify("Part Editor","Multi Select")
 end)
 
 -- Triangle toggles dropdown
 TriBtn.MouseButton1Click:Connect(function()
     SelectDropdown.Visible = not SelectDropdown.Visible
+    dropdownOpen = SelectDropdown.Visible
     if SelectDropdown.Visible then
-        -- Position below the row
         local ap = ExplorerRow.AbsolutePosition
         local as = ExplorerRow.AbsoluteSize
         SelectDropdown.Position = UDim2.new(0, ap.X, 0, ap.Y + as.Y + 4)
@@ -313,6 +315,11 @@ end)
 RowLabel.MouseButton1Click:Connect(function()
     editorOn = not editorOn
     if editorOn then
+        -- Close spawner
+        SpawnPanel.Visible = false
+        SpawnPillBtn.Text = "➕  Part Spawner: OFF"
+        SpawnPillBtn.TextColor3 = C.sub
+        -- Open editor
         RowLabel.TextColor3 = C.accent
         ExplorerRow.BackgroundColor3 = Color3.fromRGB(20,20,36)
         newStroke(ExplorerRow, C.accent, 1.5)
@@ -614,7 +621,20 @@ newBtn(SPBar, UDim2.new(0,26,0,26), UDim2.new(1,-32,0,5),
 SpawnPillBtn.MouseButton1Click:Connect(function()
     local on = SpawnPanel.Visible
     if not on then
-        -- open panel to the right of the pill
+        -- Close editor first
+        if editorOn then
+            editorOn = false
+            RowLabel.TextColor3 = C.text
+            ExplorerRow.BackgroundColor3 = C.bg
+            newStroke(ExplorerRow, Color3.fromRGB(50,50,70), 1)
+            TriBtn.TextColor3 = C.sub
+            TriBtn.Text = "▶"
+            clearAll()
+            hoveredPart = nil
+            if EditPanel then EditPanel.Visible = false end
+            SelectDropdown.Visible = false
+        end
+        -- Open spawner
         local pillPos = SpawnPill.AbsolutePosition
         local px = math.min(pillPos.X + SpawnPill.AbsoluteSize.X + 10, Camera.ViewportSize.X - 250)
         local py = math.min(pillPos.Y - 130, Camera.ViewportSize.Y - 320)
@@ -781,14 +801,28 @@ end)
 UserInputService.InputBegan:Connect(function(input, proc)
     if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
     if not editorOn then return end
-    if proc then return end
+    -- Don't use proc check — MacSploit marks game world clicks as processed
 
-    -- Use Mouse.Target — simpler and more reliable than raycast in MacSploit
+    -- Skip if clicking on our own GUI elements
+    local mp = UserInputService:GetMouseLocation()
+    local guiObjs = game:GetService("Players").LocalPlayer.PlayerGui:GetGuiObjectsAtPosition(mp.X, mp.Y)
+    -- Also check CoreGui
+    pcall(function()
+        for _, obj in ipairs(game:GetService("CoreGui"):FindFirstChild("PartEditorV3") and
+            {game:GetService("CoreGui").PartEditorV3} or {}) do
+            -- part of our own gui, let it handle
+        end
+    end)
+
     local p = Mouse.Target
-    print("[PartEditor] Clicked, part="..(p and p.Name or "nil"))
+    print("[PartEditor] Click: "..(p and p.Name or "nil").." editorOn="..tostring(editorOn))
 
     if selectMode == "single" then
         if singleSel then restoreOrig(singleSel) singleSel = nil end
+
+        if p and p:IsA("BasePart") and not isCharPart(p) and not p:IsDescendantOf(spawnerFolder) == false then
+            -- spawnerFolder parts are ok to select
+        end
 
         if p and p:IsA("BasePart") and not isCharPart(p) then
             singleSel = p
@@ -796,7 +830,6 @@ UserInputService.InputBegan:Connect(function(input, proc)
             pcall(function() p.Color=C.sel p.Transparency=0.3 end)
             EPPartName.Text = p.Name.." ("..math.floor(p.Size.X).."x"..math.floor(p.Size.Y).."x"..math.floor(p.Size.Z)..")"
             EPTitle.Text = p.Name
-            local mp = UserInputService:GetMouseLocation()
             EditPanel.Position = UDim2.new(0, math.min(mp.X+16, Camera.ViewportSize.X-270), 0, math.min(mp.Y-16, Camera.ViewportSize.Y-350))
             EditPanel.Visible = true
         else
@@ -812,7 +845,6 @@ UserInputService.InputBegan:Connect(function(input, proc)
                 addMulti(p)
                 EPTitle.Text = #multiSel.." parts"
                 EPPartName.Text = "Multi-select: "..#multiSel.." part(s)"
-                local mp = UserInputService:GetMouseLocation()
                 EditPanel.Position = UDim2.new(0, math.min(mp.X+16, Camera.ViewportSize.X-270), 0, math.min(mp.Y-16, Camera.ViewportSize.Y-350))
                 EditPanel.Visible = true
             end
