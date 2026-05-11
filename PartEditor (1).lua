@@ -472,13 +472,52 @@ newBtn(EditPanel,UDim2.new(0.5,-6,0,26),UDim2.new(0.5,2,0,310),
 -- =====================
 -- PART SPAWNER PANEL
 -- =====================
-local SpawnPanel = newFrame(gui, UDim2.new(0,200,0,280), UDim2.new(0,20,0.5,30), C.bg, 15)
+-- PART SPAWNER PILL + PANEL
+-- =====================
+local SpawnPill = newFrame(gui, UDim2.new(0,170,0,38), UDim2.new(0,20,0.5,28), C.bg, 10)
+newStroke(SpawnPill, C.sub, 1.5)
+makeDraggable(SpawnPill)
+
+local SpawnPillBtn = newBtn(SpawnPill, UDim2.new(1,0,1,0), UDim2.new(0,0,0,0),
+    "➕  Part Spawner: OFF", C.bg, 11)
+SpawnPillBtn.TextColor3 = C.sub
+
+-- Spawner panel (hidden by default)
+local SpawnPanel = newFrame(gui, UDim2.new(0,240,0,310), UDim2.new(0,200,0.5,-155), C.bg, 15)
+SpawnPanel.Visible = false
 newStroke(SpawnPanel, C.sub, 1.5)
-makeDraggable(SpawnPanel)
 
 local SPBar = newFrame(SpawnPanel, UDim2.new(1,0,0,36), UDim2.new(0,0,0,0), C.panel, 16)
-newLabel(SPBar, UDim2.new(1,-10,1,0), UDim2.new(0,10,0,0),
+makeDraggable(SpawnPanel, SPBar)
+newLabel(SPBar, UDim2.new(1,-50,1,0), UDim2.new(0,10,0,0),
     "➕ Part Spawner", C.accent, Enum.Font.GothamBlack, 13, 17)
+newBtn(SPBar, UDim2.new(0,26,0,26), UDim2.new(1,-32,0,5),
+    "X", C.red, 17, function()
+        SpawnPanel.Visible = false
+        SpawnPillBtn.Text = "➕  Part Spawner: OFF"
+        SpawnPillBtn.TextColor3 = C.sub
+        newStroke(SpawnPill, C.sub, 1.5)
+    end)
+
+SpawnPillBtn.MouseButton1Click:Connect(function()
+    local on = SpawnPanel.Visible
+    if not on then
+        -- open panel to the right of the pill
+        local pillPos = SpawnPill.AbsolutePosition
+        local px = math.min(pillPos.X + SpawnPill.AbsoluteSize.X + 10, Camera.ViewportSize.X - 250)
+        local py = math.min(pillPos.Y - 130, Camera.ViewportSize.Y - 320)
+        SpawnPanel.Position = UDim2.new(0, px, 0, py)
+        SpawnPanel.Visible = true
+        SpawnPillBtn.Text = "➕  Part Spawner: ON"
+        SpawnPillBtn.TextColor3 = C.accent
+        newStroke(SpawnPill, C.accent, 1.5)
+    else
+        SpawnPanel.Visible = false
+        SpawnPillBtn.Text = "➕  Part Spawner: OFF"
+        SpawnPillBtn.TextColor3 = C.sub
+        newStroke(SpawnPill, C.sub, 1.5)
+    end
+end)
 
 local spawnShape    = "Block"
 local spawnColor    = Color3.fromRGB(163,162,165)
@@ -489,9 +528,9 @@ newSectionLabel(SpawnPanel, 42, "SHAPE", 16)
 local shapeNames = {"Block","Sphere","Wedge","Cylinder"}
 local shapeBtns  = {}
 for i, sh in ipairs(shapeNames) do
-    local b = newBtn(SpawnPanel,UDim2.new(0,40,0,24),UDim2.new(0,6+(i-1)*46,0,58),
+    local b = newBtn(SpawnPanel,UDim2.new(0,50,0,26),UDim2.new(0,6+(i-1)*56,0,58),
         sh:sub(1,4), C.row, 17)
-    b.TextSize = 10
+    b.TextSize = 11
     table.insert(shapeBtns,b)
     b.MouseButton1Click:Connect(function()
         spawnShape = sh
@@ -542,7 +581,7 @@ end
 spColorBtns[1].BorderSizePixel=2
 
 newSectionLabel(SpawnPanel, 176, "OPTIONS", 16)
-local anchorBtn = newBtn(SpawnPanel,UDim2.new(0.5,-6,0,26),UDim2.new(0,6,0,192),
+local anchorBtn = newBtn(SpawnPanel,UDim2.new(0.5,-6,0,28),UDim2.new(0,6,0,192),
     "Anchored", C.green, 17)
 anchorBtn.MouseButton1Click:Connect(function()
     spawnAnchored = not spawnAnchored
@@ -550,14 +589,14 @@ anchorBtn.MouseButton1Click:Connect(function()
     anchorBtn.BackgroundColor3 = spawnAnchored and C.green or C.orange
 end)
 
-newBtn(SpawnPanel,UDim2.new(0.5,-6,0,26),UDim2.new(0.5,2,0,192),
+newBtn(SpawnPanel,UDim2.new(0.5,-6,0,28),UDim2.new(0.5,2,0,192),
     "Clear All", C.red, 17, function()
         for _, p in pairs(spawnerFolder:GetChildren()) do pcall(function() p:Destroy() end) end
         notify("Part Spawner","Cleared all spawned parts!")
     end)
 
-newBtn(SpawnPanel,UDim2.new(1,-16,0,32),UDim2.new(0,8,0,226),
-    "➕ Spawn in Front", C.blue, 17, function()
+newBtn(SpawnPanel,UDim2.new(1,-16,0,34),UDim2.new(0,8,0,230),
+    "➕  Spawn in Front", C.blue, 17, function()
         local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         if not root then notify("Part Spawner","No character!") return end
         local part
@@ -576,6 +615,26 @@ newBtn(SpawnPanel,UDim2.new(1,-16,0,32),UDim2.new(0,8,0,226),
         part.CFrame   = root.CFrame * CFrame.new(0,0,-(spawnSize/2+5))
         part.Parent   = spawnerFolder
         notify("Part Spawner", spawnShape.." spawned! Size: "..spawnSize)
+    end)
+
+newBtn(SpawnPanel,UDim2.new(1,-16,0,28),UDim2.new(0,8,0,270),
+    "Spawn at Camera", Color3.fromRGB(40,80,160), 17, function()
+        local part
+        if spawnShape == "Wedge" then
+            part = Instance.new("WedgePart")
+        else
+            part = Instance.new("Part")
+            if spawnShape == "Sphere" then part.Shape = Enum.PartType.Ball
+            elseif spawnShape == "Cylinder" then part.Shape = Enum.PartType.Cylinder end
+        end
+        part.Name     = "SpawnedPart"
+        part.Size     = Vector3.new(spawnSize,spawnSize,spawnSize)
+        part.Color    = spawnColor
+        part.Anchored = spawnAnchored
+        part.CanCollide = true
+        part.CFrame   = Camera.CFrame * CFrame.new(0,0,-10)
+        part.Parent   = spawnerFolder
+        notify("Part Spawner","Spawned at camera!")
     end)
 
 -- =====================
