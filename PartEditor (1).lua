@@ -203,28 +203,140 @@ local function newSectionLabel(parent, y, text, z)
 end
 
 -- =====================
--- MAIN TOGGLE BUTTON (draggable pill)
+-- EXPLORER STYLE ROW (like Roblox Studio)
 -- =====================
-local Pill = newFrame(gui, UDim2.new(0,170,0,38), UDim2.new(0,20,0.5,-19), C.bg, 10)
-newStroke(Pill, C.sub, 1.5)
-makeDraggable(Pill)
+local ExplorerRow = newFrame(gui, UDim2.new(0,200,0,30), UDim2.new(0,10,0.5,-15), C.bg, 10)
+newStroke(ExplorerRow, Color3.fromRGB(50,50,70), 1)
+makeDraggable(ExplorerRow)
 
-local PillBtn = newBtn(Pill, UDim2.new(1,0,1,0), UDim2.new(0,0,0,0),
-    "✏️  Part Editor: OFF", C.bg, 11)
-PillBtn.TextColor3 = C.sub
-PillBtn.MouseButton1Click:Connect(function()
+-- Triangle button (left side, toggles editor on/off and spins)
+local TriBtn = Instance.new("TextButton")
+TriBtn.Size = UDim2.new(0,24,1,0)
+TriBtn.Position = UDim2.new(0,0,0,0)
+TriBtn.BackgroundTransparency = 1
+TriBtn.TextColor3 = C.sub
+TriBtn.Font = Enum.Font.GothamBold
+TriBtn.TextSize = 12
+TriBtn.Text = "▶"
+TriBtn.ZIndex = 12
+TriBtn.Parent = ExplorerRow
+
+-- Icon
+local RowIcon = Instance.new("TextLabel")
+RowIcon.Size = UDim2.new(0,20,1,0)
+RowIcon.Position = UDim2.new(0,26,0,0)
+RowIcon.BackgroundTransparency = 1
+RowIcon.TextColor3 = C.accent
+RowIcon.Font = Enum.Font.GothamBold
+RowIcon.TextSize = 13
+RowIcon.Text = "✏️"
+RowIcon.ZIndex = 12
+RowIcon.Parent = ExplorerRow
+
+-- Label (clicking toggles editor)
+local RowLabel = Instance.new("TextButton")
+RowLabel.Size = UDim2.new(1,-50,1,0)
+RowLabel.Position = UDim2.new(0,48,0,0)
+RowLabel.BackgroundTransparency = 1
+RowLabel.TextColor3 = C.text
+RowLabel.Font = Enum.Font.GothamBold
+RowLabel.TextSize = 12
+RowLabel.Text = "Part Editor"
+RowLabel.TextXAlignment = Enum.TextXAlignment.Left
+RowLabel.ZIndex = 12
+RowLabel.Parent = ExplorerRow
+
+-- Dropdown panel for select mode
+local SelectDropdown = newFrame(gui, UDim2.new(0,180,0,72), UDim2.new(0,10,0.5,20), C.bg, 30)
+SelectDropdown.Visible = false
+newStroke(SelectDropdown, C.accent, 1.5)
+
+local ddSingle = newBtn(SelectDropdown, UDim2.new(1,-8,0,28), UDim2.new(0,4,0,4),
+    "▶  Single Select", C.blue, 31)
+local ddMulti = newBtn(SelectDropdown, UDim2.new(1,-8,0,28), UDim2.new(0,4,0,36),
+    "    Multi Select", C.row, 31)
+ddSingle.TextXAlignment = Enum.TextXAlignment.Left
+ddMulti.TextXAlignment = Enum.TextXAlignment.Left
+ddSingle.Font = Enum.Font.GothamBold
+ddMulti.Font = Enum.Font.GothamBold
+ddSingle.TextSize = 11
+ddMulti.TextSize = 11
+
+local function updateSelectUI()
+    if selectMode == "single" then
+        ddSingle.Text = "▶  Single Select"
+        ddSingle.BackgroundColor3 = C.blue
+        ddMulti.Text = "    Multi Select"
+        ddMulti.BackgroundColor3 = C.row
+    else
+        ddSingle.Text = "    Single Select"
+        ddSingle.BackgroundColor3 = C.row
+        ddMulti.Text = "▶  Multi Select"
+        ddMulti.BackgroundColor3 = C.blue
+    end
+end
+updateSelectUI()
+
+ddSingle.MouseButton1Click:Connect(function()
+    selectMode = "single" clearAll()
+    if EditPanel then EditPanel.Visible = false end
+    updateSelectUI()
+    SelectDropdown.Visible = false
+    TriBtn.Text = "▼"
+    notify("Part Editor","Single Select")
+end)
+
+ddMulti.MouseButton1Click:Connect(function()
+    selectMode = "multi" clearAll()
+    if EditPanel then EditPanel.Visible = false end
+    updateSelectUI()
+    SelectDropdown.Visible = false
+    TriBtn.Text = "▼"
+    notify("Part Editor","Multi Select")
+end)
+
+-- Triangle toggles dropdown
+TriBtn.MouseButton1Click:Connect(function()
+    SelectDropdown.Visible = not SelectDropdown.Visible
+    if SelectDropdown.Visible then
+        -- Position below the row
+        local ap = ExplorerRow.AbsolutePosition
+        local as = ExplorerRow.AbsoluteSize
+        SelectDropdown.Position = UDim2.new(0, ap.X, 0, ap.Y + as.Y + 4)
+        TriBtn.Text = "▼"
+    else
+        TriBtn.Text = "▶"
+    end
+end)
+
+-- Row label toggles editor on/off
+RowLabel.MouseButton1Click:Connect(function()
     editorOn = not editorOn
     if editorOn then
-        PillBtn.Text = "✏️  Part Editor: ON"
-        PillBtn.TextColor3 = C.accent
-        newStroke(Pill, C.accent, 1.5)
+        RowLabel.TextColor3 = C.accent
+        ExplorerRow.BackgroundColor3 = Color3.fromRGB(20,20,36)
+        newStroke(ExplorerRow, C.accent, 1.5)
+        TriBtn.TextColor3 = C.accent
     else
-        PillBtn.Text = "✏️  Part Editor: OFF"
-        PillBtn.TextColor3 = C.sub
-        newStroke(Pill, C.sub, 1.5)
+        RowLabel.TextColor3 = C.text
+        ExplorerRow.BackgroundColor3 = C.bg
+        newStroke(ExplorerRow, Color3.fromRGB(50,50,70), 1)
+        TriBtn.TextColor3 = C.sub
         clearAll()
         hoveredPart = nil
         if EditPanel then EditPanel.Visible = false end
+        SelectDropdown.Visible = false
+        TriBtn.Text = "▶"
+    end
+end)
+
+-- Close dropdown when clicking elsewhere
+UserInputService.InputBegan:Connect(function(i)
+    if i.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+    task.wait()
+    if SelectDropdown.Visible then
+        SelectDropdown.Visible = false
+        TriBtn.Text = "▶"
     end
 end)
 
@@ -669,20 +781,11 @@ end)
 UserInputService.InputBegan:Connect(function(input, proc)
     if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
     if not editorOn then return end
-    -- Don't block on proc — MacSploit needs this
-    -- But skip if clicking on a GUI button (check via GuiService)
-    local guiObjects = game:GetService("Players").LocalPlayer:GetGuiObjectsAtPosition(
-        UserInputService:GetMouseLocation().X,
-        UserInputService:GetMouseLocation().Y
-    )
-    for _, obj in ipairs(guiObjects) do
-        if obj:IsA("TextButton") or obj:IsA("ImageButton") or obj:IsA("TextBox") then
-            return -- clicked a GUI element, skip
-        end
-    end
+    if proc then return end
 
-    local p = rayPart()
-    print("[PartEditor] Clicked, editorOn="..tostring(editorOn).." part="..(p and p.Name or "nil"))
+    -- Use Mouse.Target — simpler and more reliable than raycast in MacSploit
+    local p = Mouse.Target
+    print("[PartEditor] Clicked, part="..(p and p.Name or "nil"))
 
     if selectMode == "single" then
         if singleSel then restoreOrig(singleSel) singleSel = nil end
@@ -691,12 +794,10 @@ UserInputService.InputBegan:Connect(function(input, proc)
             singleSel = p
             saveOrig(p)
             pcall(function() p.Color=C.sel p.Transparency=0.3 end)
-            EPPartName.Text = p.Name.." ("..tostring(math.floor(p.Size.X)).."x"..tostring(math.floor(p.Size.Y)).."x"..tostring(math.floor(p.Size.Z))..")"
+            EPPartName.Text = p.Name.." ("..math.floor(p.Size.X).."x"..math.floor(p.Size.Y).."x"..math.floor(p.Size.Z)..")"
             EPTitle.Text = p.Name
             local mp = UserInputService:GetMouseLocation()
-            local px = math.min(mp.X + 16, Camera.ViewportSize.X - 270)
-            local py = math.min(mp.Y - 16, Camera.ViewportSize.Y - 350)
-            EditPanel.Position = UDim2.new(0, px, 0, py)
+            EditPanel.Position = UDim2.new(0, math.min(mp.X+16, Camera.ViewportSize.X-270), 0, math.min(mp.Y-16, Camera.ViewportSize.Y-350))
             EditPanel.Visible = true
         else
             EditPanel.Visible = false
@@ -712,14 +813,12 @@ UserInputService.InputBegan:Connect(function(input, proc)
                 EPTitle.Text = #multiSel.." parts"
                 EPPartName.Text = "Multi-select: "..#multiSel.." part(s)"
                 local mp = UserInputService:GetMouseLocation()
-                local px = math.min(mp.X+16, Camera.ViewportSize.X-270)
-                local py = math.min(mp.Y-16, Camera.ViewportSize.Y-350)
-                EditPanel.Position = UDim2.new(0,px,0,py)
+                EditPanel.Position = UDim2.new(0, math.min(mp.X+16, Camera.ViewportSize.X-270), 0, math.min(mp.Y-16, Camera.ViewportSize.Y-350))
                 EditPanel.Visible = true
             end
         end
     end
 end)
 
-notify("Part Editor", "Loaded! Click the pill to enable, then click any part.")
+notify("Part Editor", "Loaded! Click Part Editor to enable, triangle for select mode.")
 print("[Part Editor v3] Loaded!")
