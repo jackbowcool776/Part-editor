@@ -224,13 +224,12 @@ PillBtn.MouseButton1Click:Connect(function()
         newStroke(Pill, C.sub, 1.5)
         clearAll()
         hoveredPart = nil
-        EditPanel.Visible = false
+        if EditPanel then EditPanel.Visible = false end
     end
 end)
 
 -- =====================
 -- EDIT PANEL (opens on click)
--- Opens right of pill by default, draggable
 -- =====================
 local EditPanel = newFrame(gui, UDim2.new(0,260,0,340), UDim2.new(0,200,0.5,-170), C.bg, 20)
 EditPanel.Visible = false
@@ -238,7 +237,7 @@ newStroke(EditPanel, C.accent, 1.5)
 
 -- Title bar (draggable)
 local EPBar = newFrame(EditPanel, UDim2.new(1,0,0,36), UDim2.new(0,0,0,0), C.panel, 21)
-EPBar.CornerRadius = UDim.new(0,12) -- already done by newFrame
+-- UICorner already added by newFrame, no need to set again
 makeDraggable(EditPanel, EPBar)
 
 local EPTitle = newLabel(EPBar, UDim2.new(1,-80,1,0), UDim2.new(0,12,0,0),
