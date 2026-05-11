@@ -609,33 +609,38 @@ end)
 -- CLICK LOGIC
 -- =====================
 UserInputService.InputBegan:Connect(function(input, proc)
-    if proc then return end
-    if not editorOn then return end
     if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+    if not editorOn then return end
+    -- Don't block on proc — MacSploit needs this
+    -- But skip if clicking on a GUI button (check via GuiService)
+    local guiObjects = game:GetService("Players").LocalPlayer:GetGuiObjectsAtPosition(
+        UserInputService:GetMouseLocation().X,
+        UserInputService:GetMouseLocation().Y
+    )
+    for _, obj in ipairs(guiObjects) do
+        if obj:IsA("TextButton") or obj:IsA("ImageButton") or obj:IsA("TextBox") then
+            return -- clicked a GUI element, skip
+        end
+    end
 
     local p = rayPart()
+    print("[PartEditor] Clicked, editorOn="..tostring(editorOn).." part="..(p and p.Name or "nil"))
 
     if selectMode == "single" then
-        -- restore old
         if singleSel then restoreOrig(singleSel) singleSel = nil end
 
         if p and p:IsA("BasePart") and not isCharPart(p) then
             singleSel = p
             saveOrig(p)
             pcall(function() p.Color=C.sel p.Transparency=0.3 end)
-
-            -- open / update edit panel
             EPPartName.Text = p.Name.." ("..tostring(math.floor(p.Size.X)).."x"..tostring(math.floor(p.Size.Y)).."x"..tostring(math.floor(p.Size.Z))..")"
             EPTitle.Text = p.Name
-
-            -- position panel near click but on screen
             local mp = UserInputService:GetMouseLocation()
             local px = math.min(mp.X + 16, Camera.ViewportSize.X - 270)
             local py = math.min(mp.Y - 16, Camera.ViewportSize.Y - 350)
             EditPanel.Position = UDim2.new(0, px, 0, py)
             EditPanel.Visible = true
         else
-            -- clicked sky — close panel
             EditPanel.Visible = false
         end
 
