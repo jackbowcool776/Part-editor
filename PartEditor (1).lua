@@ -128,7 +128,7 @@ end
 local function rayPart()
     local ray = Camera:ScreenPointToRay(Mouse.X, Mouse.Y)
     local rp  = RaycastParams.new()
-    local ign = {spawnerFolder}
+    local ign = {handlesFolder}  -- only ignore handles, NOT spawnerFolder
     local ch  = LocalPlayer.Character
     if ch then table.insert(ign, ch) end
     rp.FilterDescendantsInstances = ign
@@ -422,7 +422,7 @@ local SpawnPillBtn = newBtn(SpawnPill, UDim2.new(1,0,1,0), UDim2.new(0,0,0,0),
 SpawnPillBtn.TextColor3 = C.sub
 
 -- Spawner panel (hidden by default)
-local SpawnPanel = newFrame(gui, UDim2.new(0,240,0,310), UDim2.new(0,200,0.5,-155), C.bg, 15)
+local SpawnPanel = newFrame(gui, UDim2.new(0,240,0,360), UDim2.new(0,200,0.5,-180), C.bg, 15)
 SpawnPanel.Visible = false
 newStroke(SpawnPanel, C.sub, 1.5)
 
@@ -541,46 +541,76 @@ newBtn(SpawnPanel,UDim2.new(0.5,-6,0,28),UDim2.new(0.5,2,0,192),
         notify("Part Spawner","Cleared all spawned parts!")
     end)
 
-newBtn(SpawnPanel,UDim2.new(1,-16,0,34),UDim2.new(0,8,0,230),
+-- Grid size input
+local gridSize = 4
+newSectionLabel(SpawnPanel, 226, "GRID SIZE", 16)
+local GridBox = Instance.new("TextBox")
+GridBox.Size = UDim2.new(1,-16,0,26)
+GridBox.Position = UDim2.new(0,8,0,242)
+GridBox.BackgroundColor3 = C.input GridBox.TextColor3 = C.text
+GridBox.Font = Enum.Font.GothamBold GridBox.TextSize = 13
+GridBox.Text = "4" GridBox.PlaceholderText = "Grid size (1-100)"
+GridBox.BorderSizePixel = 0 GridBox.ClearTextOnFocus = false GridBox.ZIndex = 17
+GridBox.Parent = SpawnPanel
+Instance.new("UICorner",GridBox).CornerRadius=UDim.new(0,7)
+GridBox.Changed:Connect(function(p)
+    if p~="Text" then return end
+    local f=GridBox.Text:gsub("[^%d%.]","")
+    if f~=GridBox.Text then GridBox.Text=f end
+    local v=tonumber(f) if v then gridSize=math.clamp(v,0.1,100) end
+end)
+GridBox.FocusLost:Connect(function()
+    local v=tonumber(GridBox.Text)
+    gridSize=v and math.clamp(v,0.1,100) or gridSize
+    GridBox.Text=tostring(gridSize)
+end)
+
+local function snapToGrid(pos, grid)
+    return Vector3.new(
+        math.round(pos.X / grid) * grid,
+        math.round(pos.Y / grid) * grid,
+        math.round(pos.Z / grid) * grid
+    )
+end
+
+local function makePart()
+    local part
+    if spawnShape == "Wedge" then
+        part = Instance.new("WedgePart")
+    else
+        part = Instance.new("Part")
+        if spawnShape == "Sphere" then part.Shape = Enum.PartType.Ball
+        elseif spawnShape == "Cylinder" then part.Shape = Enum.PartType.Cylinder end
+    end
+    part.Name     = "SpawnedPart"
+    part.Size     = Vector3.new(spawnSize,spawnSize,spawnSize)
+    part.Color    = spawnColor
+    part.Anchored = spawnAnchored
+    part.CanCollide = true
+    return part
+end
+
+newBtn(SpawnPanel,UDim2.new(1,-16,0,34),UDim2.new(0,8,0,276),
     "➕  Spawn in Front", C.blue, 17, function()
         local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         if not root then notify("Part Spawner","No character!") return end
-        local part
-        if spawnShape == "Wedge" then
-            part = Instance.new("WedgePart")
-        else
-            part = Instance.new("Part")
-            if spawnShape == "Sphere" then part.Shape = Enum.PartType.Ball
-            elseif spawnShape == "Cylinder" then part.Shape = Enum.PartType.Cylinder end
-        end
-        part.Name     = "SpawnedPart"
-        part.Size     = Vector3.new(spawnSize,spawnSize,spawnSize)
-        part.Color    = spawnColor
-        part.Anchored = spawnAnchored
-        part.CanCollide = true
-        part.CFrame   = root.CFrame * CFrame.new(0,0,-(spawnSize/2+5))
-        part.Parent   = spawnerFolder
-        notify("Part Spawner", spawnShape.." spawned! Size: "..spawnSize)
+        local part = makePart()
+        -- Spawn in front then snap to grid
+        local rawPos = root.CFrame * CFrame.new(0, 0, -(spawnSize/2 + 5))
+        local snapped = snapToGrid(rawPos.Position, gridSize)
+        part.CFrame = CFrame.new(snapped)
+        part.Parent = spawnerFolder
+        notify("Part Spawner", spawnShape.." spawned on grid! Size: "..spawnSize)
     end)
 
-newBtn(SpawnPanel,UDim2.new(1,-16,0,28),UDim2.new(0,8,0,270),
+newBtn(SpawnPanel,UDim2.new(1,-16,0,28),UDim2.new(0,8,0,318),
     "Spawn at Camera", Color3.fromRGB(40,80,160), 17, function()
-        local part
-        if spawnShape == "Wedge" then
-            part = Instance.new("WedgePart")
-        else
-            part = Instance.new("Part")
-            if spawnShape == "Sphere" then part.Shape = Enum.PartType.Ball
-            elseif spawnShape == "Cylinder" then part.Shape = Enum.PartType.Cylinder end
-        end
-        part.Name     = "SpawnedPart"
-        part.Size     = Vector3.new(spawnSize,spawnSize,spawnSize)
-        part.Color    = spawnColor
-        part.Anchored = spawnAnchored
-        part.CanCollide = true
-        part.CFrame   = Camera.CFrame * CFrame.new(0,0,-10)
-        part.Parent   = spawnerFolder
-        notify("Part Spawner","Spawned at camera!")
+        local part = makePart()
+        local rawPos = Camera.CFrame * CFrame.new(0, 0, -10)
+        local snapped = snapToGrid(rawPos.Position, gridSize)
+        part.CFrame = CFrame.new(snapped)
+        part.Parent = spawnerFolder
+        notify("Part Spawner","Spawned at camera on grid!")
     end)
 
 -- =====================
