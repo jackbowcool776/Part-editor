@@ -204,7 +204,8 @@ end
 
 -- =====================
 -- =====================
--- PART EDITOR PILL (matches spawner style)
+-- =====================
+-- PART EDITOR PILL
 -- =====================
 local Pill = newFrame(gui, UDim2.new(0,180,0,38), UDim2.new(0,20,0.5,-48), C.bg, 10)
 newStroke(Pill, Color3.fromRGB(50,50,70), 1.5)
@@ -214,179 +215,68 @@ local PillBtn = newBtn(Pill, UDim2.new(1,0,1,0), UDim2.new(0,0,0,0),
     "✏️  Part Editor: OFF", C.bg, 11)
 PillBtn.TextColor3 = C.sub
 
--- Dropdown for select mode (opens below pill)
-local SelectDropdown = newFrame(gui, UDim2.new(0,180,0,72), UDim2.new(0,20,0.5,0), C.bg, 30)
-SelectDropdown.Visible = false
-newStroke(SelectDropdown, C.accent, 1.5)
-
-local ddSingle = newBtn(SelectDropdown, UDim2.new(1,-8,0,28), UDim2.new(0,4,0,4),
-    "▶  Single Select", C.blue, 31)
-local ddMulti = newBtn(SelectDropdown, UDim2.new(1,-8,0,28), UDim2.new(0,4,0,36),
-    "    Multi Select", C.row, 31)
-ddSingle.TextXAlignment = Enum.TextXAlignment.Left
-ddMulti.TextXAlignment  = Enum.TextXAlignment.Left
-ddSingle.Font = Enum.Font.GothamBold
-ddMulti.Font  = Enum.Font.GothamBold
-ddSingle.TextSize = 11
-ddMulti.TextSize  = 11
-
-local function updateSelectUI()
-    if selectMode == "single" then
-        ddSingle.Text = "▶  Single Select" ddSingle.BackgroundColor3 = C.blue
-        ddMulti.Text  = "    Multi Select" ddMulti.BackgroundColor3  = C.row
-    else
-        ddSingle.Text = "    Single Select" ddSingle.BackgroundColor3 = C.row
-        ddMulti.Text  = "▶  Multi Select"  ddMulti.BackgroundColor3  = C.blue
-    end
-end
-updateSelectUI()
-
-ddSingle.MouseButton1Click:Connect(function()
-    selectMode = "single" clearAll()
-    if EditPanel then EditPanel.Visible = false end
-    updateSelectUI()
-    SelectDropdown.Visible = false
-    notify("Part Editor", "Single Select")
-end)
-ddMulti.MouseButton1Click:Connect(function()
-    selectMode = "multi" clearAll()
-    if EditPanel then EditPanel.Visible = false end
-    updateSelectUI()
-    SelectDropdown.Visible = false
-    notify("Part Editor", "Multi Select — click parts to add/remove")
-end)
-
--- Mode dropdown triangle button (right side of pill)
-local TriBtn = newBtn(Pill, UDim2.new(0,30,1,0), UDim2.new(1,-30,0,0), "▼", C.row, 12)
-TriBtn.TextSize = 10
-TriBtn.MouseButton1Click:Connect(function()
-    SelectDropdown.Visible = not SelectDropdown.Visible
-    -- Position below pill
-    local ap = Pill.AbsolutePosition
-    local as = Pill.AbsoluteSize
-    SelectDropdown.Position = UDim2.new(0, ap.X, 0, ap.Y + as.Y + 4)
-end)
-
--- Close dropdown when clicking elsewhere
-UserInputService.InputBegan:Connect(function(i)
-    if i.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-    task.wait()
-    if SelectDropdown.Visible then SelectDropdown.Visible = false end
-end)
-
-PillBtn.MouseButton1Click:Connect(function()
-    editorOn = not editorOn
-    if editorOn then
-        -- Close spawner
-        SpawnPanel.Visible = false
-        SpawnPillBtn.Text = "➕  Part Spawner: OFF"
-        SpawnPillBtn.TextColor3 = C.sub
-        -- Open editor
-        PillBtn.Text = "✏️  Part Editor: ON"
-        PillBtn.TextColor3 = C.accent
-        newStroke(Pill, C.accent, 1.5)
-    else
-        PillBtn.Text = "✏️  Part Editor: OFF"
-        PillBtn.TextColor3 = C.sub
-        newStroke(Pill, Color3.fromRGB(50,50,70), 1.5)
-        clearAll()
-        hoveredPart = nil
-        if EditPanel then EditPanel.Visible = false end
-        SelectDropdown.Visible = false
-    end
-end)
-
 -- =====================
--- EDIT PANEL (opens on click)
+-- EDIT PANEL
 -- =====================
--- EDIT PANEL (opens on click)
--- =====================
-local EditPanel = newFrame(gui, UDim2.new(0,260,0,340), UDim2.new(0,200,0.5,-170), C.bg, 20)
+local EditPanel = newFrame(gui, UDim2.new(0,270,0,400), UDim2.new(0,210,0.5,-200), C.bg, 20)
 EditPanel.Visible = false
 newStroke(EditPanel, C.accent, 1.5)
 
--- Title bar (draggable)
-local EPBar = newFrame(EditPanel, UDim2.new(1,0,0,36), UDim2.new(0,0,0,0), C.panel, 21)
--- UICorner already added by newFrame, no need to set again
+-- Title bar (draggable handle)
+local EPBar = Instance.new("Frame")
+EPBar.Size = UDim2.new(1,0,0,36)
+EPBar.Position = UDim2.new(0,0,0,0)
+EPBar.BackgroundColor3 = C.panel
+EPBar.BorderSizePixel = 0
+EPBar.ZIndex = 21
+EPBar.Parent = EditPanel
+local epc = Instance.new("UICorner") epc.CornerRadius = UDim.new(0,12) epc.Parent = EPBar
 makeDraggable(EditPanel, EPBar)
 
-local EPTitle = newLabel(EPBar, UDim2.new(1,-80,1,0), UDim2.new(0,12,0,0),
-    "Selected Part", C.accent, Enum.Font.GothamBlack, 13, 22)
+local EPTitle = newLabel(EPBar, UDim2.new(1,-46,1,0), UDim2.new(0,10,0,0),
+    "Part Editor", C.accent, Enum.Font.GothamBlack, 13, 22)
 
--- Select mode button + dropdown
-local ModeBtn = newBtn(EPBar, UDim2.new(0,90,0,26), UDim2.new(1,-136,0,5),
-    "Single  ▼", C.row, 22)
-ModeBtn.TextSize = 11
-
--- Close button
-local EPClose = newBtn(EPBar, UDim2.new(0,26,0,26), UDim2.new(1,-32,0,5),
+newBtn(EPBar, UDim2.new(0,26,0,26), UDim2.new(1,-32,0,5),
     "X", C.red, 22, function()
         EditPanel.Visible = false
         clearAll()
     end)
-EPClose.Font = Enum.Font.GothamBlack
 
--- Dropdown
-local Dropdown = newFrame(gui, UDim2.new(0,130,0,70), UDim2.new(0,0,0,0), C.panel, 50)
-Dropdown.Visible = false
-newStroke(Dropdown, C.accent, 1.5)
+-- Part name
+local EPPartName = newLabel(EditPanel, UDim2.new(1,-16,0,18),
+    UDim2.new(0,8,0,42), "No part selected", C.sub, Enum.Font.Gotham, 11, 21)
 
-local function closeDropdown()
-    dropdownOpen = false
-    Dropdown.Visible = false
-end
+-- ── SELECT MODE ──
+newSectionLabel(EditPanel, 64, "SELECT MODE", 21)
 
-local function openDropdown()
-    dropdownOpen = true
-    -- Position below ModeBtn
-    local absPos = ModeBtn.AbsolutePosition
-    local absSize = ModeBtn.AbsoluteSize
-    Dropdown.Position = UDim2.new(0, absPos.X, 0, absPos.Y + absSize.Y + 4)
-    Dropdown.Visible = true
-end
+local selSingleBtn = newBtn(EditPanel, UDim2.new(0.5,-6,0,28), UDim2.new(0,6,0,80),
+    "Single", C.blue, 22)
+local selMultiBtn  = newBtn(EditPanel, UDim2.new(0.5,-6,0,28), UDim2.new(0.5,2,0,80),
+    "Multi", C.row, 22)
 
-local function setMode(mode)
-    selectMode = mode
+selSingleBtn.MouseButton1Click:Connect(function()
+    selectMode = "single"
     clearAll()
     EditPanel.Visible = false
-    if mode == "single" then
-        ModeBtn.Text = "Single  ▼"
-    else
-        ModeBtn.Text = "Multi  ▼"
-    end
-    closeDropdown()
-end
-
-local dSingle = newBtn(Dropdown, UDim2.new(1,-8,0,28), UDim2.new(0,4,0,4),
-    "Single Select", C.row, 51, function() setMode("single") end)
-local dMulti = newBtn(Dropdown, UDim2.new(1,-8,0,28), UDim2.new(0,4,0,36),
-    "Multi Select", C.row, 51, function() setMode("multi") end)
-
-ModeBtn.MouseButton1Click:Connect(function()
-    if dropdownOpen then closeDropdown() else openDropdown() end
+    selSingleBtn.BackgroundColor3 = C.blue
+    selMultiBtn.BackgroundColor3  = C.row
+    notify("Part Editor", "Single Select")
+end)
+selMultiBtn.MouseButton1Click:Connect(function()
+    selectMode = "multi"
+    clearAll()
+    EditPanel.Visible = false
+    selSingleBtn.BackgroundColor3 = C.row
+    selMultiBtn.BackgroundColor3  = C.blue
+    notify("Part Editor", "Multi Select")
 end)
 
--- Close dropdown when clicking elsewhere
-UserInputService.InputBegan:Connect(function(i)
-    if i.UserInputType == Enum.UserInputType.MouseButton1 and dropdownOpen then
-        task.wait()
-        closeDropdown()
-    end
-end)
+-- ── TRANSFORM ──
+newSectionLabel(EditPanel, 116, "TRANSFORM", 21)
 
--- Part name label
-local EPPartName = newLabel(EditPanel, UDim2.new(1,-16,0,18),
-    UDim2.new(0,8,0,42), "None selected", C.sub, Enum.Font.Gotham, 11, 21)
-
--- =====================
--- TRANSFORM SECTION
--- =====================
-newSectionLabel(EditPanel, 64, "TRANSFORM", 21)
-
--- Mode row
 local tmBtns = {}
 for i, m in ipairs({"Move","Resize","Rotate"}) do
-    local b = newBtn(EditPanel, UDim2.new(0,72,0,26), UDim2.new(0,6+(i-1)*82,0,80),
+    local b = newBtn(EditPanel, UDim2.new(0,76,0,26), UDim2.new(0,6+(i-1)*86,0,132),
         m, C.row, 22)
     b.TextSize = 11
     table.insert(tmBtns, b)
@@ -398,81 +288,50 @@ for i, m in ipairs({"Move","Resize","Rotate"}) do
     if m == "Move" then b.BackgroundColor3 = C.blue end
 end
 
--- Axis buttons
-local axColors = {
-    X = Color3.fromRGB(220,60,60),
-    Y = Color3.fromRGB(60,200,60),
-    Z = Color3.fromRGB(60,100,220),
-}
+local axColors = {X=Color3.fromRGB(220,60,60), Y=Color3.fromRGB(60,200,60), Z=Color3.fromRGB(60,100,220)}
 for i, axis in ipairs({"X","Y","Z"}) do
-    local xOff = 6 + (i-1) * 82
+    local xOff = 6 + (i-1) * 86
     local col = axColors[axis]
-    local dimCol = Color3.fromRGB(col.R*155, col.G*155, col.B*155)
+    local dim = Color3.fromRGB(col.R*155, col.G*155, col.B*155)
 
-    newBtn(EditPanel, UDim2.new(0,72,0,24), UDim2.new(0,xOff,0,112),
-        axis.." +", col, 22, function()
-            for _, p in ipairs(getTargets()) do
-                pcall(function()
-                    if transformMode == "move" then
-                        local v = axis=="X" and Vector3.new(1,0,0) or axis=="Y" and Vector3.new(0,1,0) or Vector3.new(0,0,1)
-                        p.CFrame = p.CFrame + v * stepValue
-                    elseif transformMode == "resize" then
-                        local v = axis=="X" and Vector3.new(1,0,0) or axis=="Y" and Vector3.new(0,1,0) or Vector3.new(0,0,1)
-                        p.Size = Vector3.new(math.max(0.05,p.Size.X+v.X*stepValue),math.max(0.05,p.Size.Y+v.Y*stepValue),math.max(0.05,p.Size.Z+v.Z*stepValue))
-                    elseif transformMode == "rotate" then
-                        local rot = axis=="X" and CFrame.Angles(math.rad(stepValue*15),0,0) or axis=="Y" and CFrame.Angles(0,math.rad(stepValue*15),0) or CFrame.Angles(0,0,math.rad(stepValue*15))
-                        p.CFrame = p.CFrame * rot
-                    end
-                end)
-            end
-        end)
+    local function applyAxis(delta)
+        for _, p in ipairs(getTargets()) do
+            pcall(function()
+                if transformMode == "move" then
+                    local v = axis=="X" and Vector3.new(1,0,0) or axis=="Y" and Vector3.new(0,1,0) or Vector3.new(0,0,1)
+                    p.CFrame = p.CFrame + v * delta
+                elseif transformMode == "resize" then
+                    local v = axis=="X" and Vector3.new(1,0,0) or axis=="Y" and Vector3.new(0,1,0) or Vector3.new(0,0,1)
+                    p.Size = Vector3.new(math.max(0.05,p.Size.X+v.X*delta),math.max(0.05,p.Size.Y+v.Y*delta),math.max(0.05,p.Size.Z+v.Z*delta))
+                elseif transformMode == "rotate" then
+                    local rot = axis=="X" and CFrame.Angles(math.rad(delta*15),0,0) or axis=="Y" and CFrame.Angles(0,math.rad(delta*15),0) or CFrame.Angles(0,0,math.rad(delta*15))
+                    p.CFrame = p.CFrame * rot
+                end
+            end)
+        end
+    end
 
-    newBtn(EditPanel, UDim2.new(0,72,0,24), UDim2.new(0,xOff,0,140),
-        axis.." -", dimCol, 22, function()
-            for _, p in ipairs(getTargets()) do
-                pcall(function()
-                    if transformMode == "move" then
-                        local v = axis=="X" and Vector3.new(1,0,0) or axis=="Y" and Vector3.new(0,1,0) or Vector3.new(0,0,1)
-                        p.CFrame = p.CFrame - v * stepValue
-                    elseif transformMode == "resize" then
-                        local v = axis=="X" and Vector3.new(1,0,0) or axis=="Y" and Vector3.new(0,1,0) or Vector3.new(0,0,1)
-                        p.Size = Vector3.new(math.max(0.05,p.Size.X-v.X*stepValue),math.max(0.05,p.Size.Y-v.Y*stepValue),math.max(0.05,p.Size.Z-v.Z*stepValue))
-                    elseif transformMode == "rotate" then
-                        local rot = axis=="X" and CFrame.Angles(math.rad(-stepValue*15),0,0) or axis=="Y" and CFrame.Angles(0,math.rad(-stepValue*15),0) or CFrame.Angles(0,0,math.rad(-stepValue*15))
-                        p.CFrame = p.CFrame * rot
-                    end
-                end)
-            end
-        end)
+    newBtn(EditPanel, UDim2.new(0,76,0,24), UDim2.new(0,xOff,0,164), axis.." +", col, 22, function() applyAxis(stepValue) end)
+    newBtn(EditPanel, UDim2.new(0,76,0,24), UDim2.new(0,xOff,0,192), axis.." -", dim, 22, function() applyAxis(-stepValue) end)
 end
 
--- Step input
-newSectionLabel(EditPanel, 170, "STEP SIZE (0.1 - 500)", 21)
-
+-- Step size
+newSectionLabel(EditPanel, 222, "STEP SIZE (0.1 - 500)", 21)
 local StepBox = Instance.new("TextBox")
 StepBox.Size = UDim2.new(1,-16,0,28)
-StepBox.Position = UDim2.new(0,8,0,186)
-StepBox.BackgroundColor3 = C.input
-StepBox.TextColor3 = C.text
-StepBox.Font = Enum.Font.GothamBold
-StepBox.TextSize = 14
-StepBox.Text = "1"
-StepBox.PlaceholderText = "e.g. 0.5, 1, 10, 100"
-StepBox.BorderSizePixel = 0
-StepBox.ClearTextOnFocus = false
-StepBox.ZIndex = 22
+StepBox.Position = UDim2.new(0,8,0,238)
+StepBox.BackgroundColor3 = C.input StepBox.TextColor3 = C.text
+StepBox.Font = Enum.Font.GothamBold StepBox.TextSize = 14
+StepBox.Text = "1" StepBox.PlaceholderText = "e.g. 0.5, 1, 10"
+StepBox.BorderSizePixel = 0 StepBox.ClearTextOnFocus = false StepBox.ZIndex = 22
 StepBox.Parent = EditPanel
-Instance.new("UICorner", StepBox).CornerRadius = UDim.new(0,8)
-
+Instance.new("UICorner",StepBox).CornerRadius = UDim.new(0,8)
 StepBox.Changed:Connect(function(prop)
     if prop ~= "Text" then return end
-    local filtered = StepBox.Text:gsub("[^%d%.]","")
-    -- one decimal point only
-    local dot = filtered:find("%.")
-    if dot then filtered = filtered:sub(1,dot)..filtered:sub(dot+1):gsub("%.","") end
-    if filtered ~= StepBox.Text then StepBox.Text = filtered end
-    local v = tonumber(filtered)
-    if v then stepValue = math.clamp(v, 0.1, 500) end
+    local f = StepBox.Text:gsub("[^%d%.]","")
+    local d = f:find("%.") if d then f=f:sub(1,d)..f:sub(d+1):gsub("%.","") end
+    if f ~= StepBox.Text then StepBox.Text = f end
+    local v = tonumber(f) if v then stepValue = math.clamp(v,0.1,500) end
 end)
 StepBox.FocusLost:Connect(function()
     local v = tonumber(StepBox.Text)
@@ -480,68 +339,68 @@ StepBox.FocusLost:Connect(function()
     StepBox.Text = tostring(stepValue)
 end)
 
--- =====================
--- APPEARANCE SECTION
--- =====================
-newSectionLabel(EditPanel, 222, "COLOR", 21)
-
-local colorList = {
-    Color3.fromRGB(163,162,165), Color3.fromRGB(255,80,80),
-    Color3.fromRGB(80,200,80),   Color3.fromRGB(80,120,255),
-    Color3.fromRGB(255,200,80),  Color3.fromRGB(255,130,255),
-    Color3.fromRGB(255,165,0),   Color3.fromRGB(255,255,255),
-}
+-- ── COLOR ──
+newSectionLabel(EditPanel, 274, "COLOR", 21)
+local colorList = {Color3.fromRGB(163,162,165),Color3.fromRGB(255,80,80),Color3.fromRGB(80,200,80),Color3.fromRGB(80,120,255),Color3.fromRGB(255,200,80),Color3.fromRGB(255,130,255),Color3.fromRGB(255,165,0),Color3.fromRGB(255,255,255)}
 for i, col in ipairs(colorList) do
     local cb = Instance.new("TextButton")
-    cb.Size = UDim2.new(0,24,0,20)
-    cb.Position = UDim2.new(0,8+((i-1)%8)*29,0,238)
-    cb.BackgroundColor3 = col cb.Text = "" cb.BorderSizePixel = 0 cb.ZIndex = 22
-    cb.Parent = EditPanel
-    Instance.new("UICorner",cb).CornerRadius = UDim.new(0,4)
+    cb.Size=UDim2.new(0,26,0,22) cb.Position=UDim2.new(0,8+((i-1)%8)*31,0,290)
+    cb.BackgroundColor3=col cb.Text="" cb.BorderSizePixel=0 cb.ZIndex=22 cb.Parent=EditPanel
+    Instance.new("UICorner",cb).CornerRadius=UDim.new(0,4)
     cb.MouseButton1Click:Connect(function()
-        for _, p in ipairs(getTargets()) do pcall(function() p.Color = col end) end
+        for _, p in ipairs(getTargets()) do pcall(function() p.Color=col end) end
     end)
 end
 
-newSectionLabel(EditPanel, 264, "TRANSPARENCY", 21)
-local tOpts = {{0,"Solid"},{0.5,"50%"},{0.9,"Ghost"},{1,"Hidden"}}
-for i, tv in ipairs(tOpts) do
-    newBtn(EditPanel,UDim2.new(0,54,0,22),UDim2.new(0,6+(i-1)*60,0,280),
-        tv[2], C.row, 22, function()
-            for _, p in ipairs(getTargets()) do pcall(function() p.Transparency=tv[1] end) end
-        end)
+-- ── TRANSPARENCY ──
+newSectionLabel(EditPanel, 318, "TRANSPARENCY", 21)
+for i, tv in ipairs({{0,"Solid"},{0.5,"50%"},{0.9,"Ghost"},{1,"Hidden"}}) do
+    newBtn(EditPanel,UDim2.new(0,57,0,24),UDim2.new(0,6+(i-1)*64,0,334),tv[2],C.row,22,function()
+        for _, p in ipairs(getTargets()) do pcall(function() p.Transparency=tv[1] end) end
+    end)
 end
 
--- =====================
--- DELETE / RESET
--- =====================
-newBtn(EditPanel,UDim2.new(0.5,-6,0,26),UDim2.new(0,6,0,310),
-    "Reset",C.blue,22,function()
-        for _, p in ipairs(getTargets()) do
-            if origData[p] then
-                pcall(function() p.Color=origData[p].color p.Transparency=origData[p].trans end)
+-- ── ACTIONS ──
+newBtn(EditPanel,UDim2.new(0.5,-6,0,28),UDim2.new(0,6,0,366),"Reset",C.blue,22,function()
+    for _, p in ipairs(getTargets()) do
+        if origData[p] then pcall(function() p.Color=origData[p].color p.Transparency=origData[p].trans end) end
+    end
+end)
+newBtn(EditPanel,UDim2.new(0.5,-6,0,28),UDim2.new(0.5,2,0,366),"🗑️ Delete",C.red,22,function()
+    local count=0
+    for _, p in ipairs(getTargets()) do
+        pcall(function()
+            for _,v in pairs(p:GetDescendants()) do
+                if v:IsA("Script") or v:IsA("LocalScript") or v:IsA("ModuleScript") then v:Destroy() end
             end
-        end
-    end)
+            p:Destroy() count=count+1
+        end)
+    end
+    clearAll() EditPanel.Visible=false
+    notify("Part Editor","Deleted "..count.." part(s)")
+end)
 
-newBtn(EditPanel,UDim2.new(0.5,-6,0,26),UDim2.new(0.5,2,0,310),
-    "🗑️ Delete",C.red,22,function()
-        local count = 0
-        for _, p in ipairs(getTargets()) do
-            pcall(function()
-                for _, v in pairs(p:GetDescendants()) do
-                    if v:IsA("Script") or v:IsA("LocalScript") or v:IsA("ModuleScript") then v:Destroy() end
-                end
-                p:Destroy() count = count + 1
-            end)
-        end
-        clearAll() EditPanel.Visible = false
-        notify("Part Editor", "Deleted "..count.." part(s)")
-    end)
+-- Pill toggle
+PillBtn.MouseButton1Click:Connect(function()
+    editorOn = not editorOn
+    if editorOn then
+        SpawnPanel.Visible = false
+        SpawnPillBtn.Text = "➕  Part Spawner: OFF"
+        SpawnPillBtn.TextColor3 = C.sub
+        PillBtn.Text = "✏️  Part Editor: ON"
+        PillBtn.TextColor3 = C.accent
+        newStroke(Pill, C.accent, 1.5)
+    else
+        editorOn = false
+        PillBtn.Text = "✏️  Part Editor: OFF"
+        PillBtn.TextColor3 = C.sub
+        newStroke(Pill, Color3.fromRGB(50,50,70), 1.5)
+        clearAll()
+        hoveredPart = nil
+        EditPanel.Visible = false
+    end
+end)
 
--- =====================
--- PART SPAWNER PANEL
--- =====================
 -- PART SPAWNER PILL + PANEL
 -- =====================
 local SpawnPill = newFrame(gui, UDim2.new(0,170,0,38), UDim2.new(0,20,0.5,28), C.bg, 10)
@@ -750,56 +609,56 @@ end)
 UserInputService.InputBegan:Connect(function(input, proc)
     if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
     if not editorOn then return end
-    -- Don't use proc check — MacSploit marks game world clicks as processed
-
-    -- Skip if clicking on our own GUI elements
-    local mp = UserInputService:GetMouseLocation()
-    local guiObjs = game:GetService("Players").LocalPlayer.PlayerGui:GetGuiObjectsAtPosition(mp.X, mp.Y)
-    -- Also check CoreGui
-    pcall(function()
-        for _, obj in ipairs(game:GetService("CoreGui"):FindFirstChild("PartEditorV3") and
-            {game:GetService("CoreGui").PartEditorV3} or {}) do
-            -- part of our own gui, let it handle
-        end
-    end)
+    -- Skip if clicking on our own GUI
+    if proc then return end
 
     local p = Mouse.Target
-    print("[PartEditor] Click: "..(p and p.Name or "nil").." editorOn="..tostring(editorOn))
+    if not p then
+        -- Clicked sky in single mode — close panel
+        if selectMode == "single" then
+            if singleSel then restoreOrig(singleSel) singleSel = nil end
+            EditPanel.Visible = false
+        end
+        return
+    end
+
+    -- Skip GUI frames
+    if p:IsDescendantOf(gui) then return end
+
+    print("[PartEditor] Click: "..p.Name)
 
     if selectMode == "single" then
         if singleSel then restoreOrig(singleSel) singleSel = nil end
 
-        if p and p:IsA("BasePart") and not isCharPart(p) and not p:IsDescendantOf(spawnerFolder) == false then
-            -- spawnerFolder parts are ok to select
-        end
-
-        if p and p:IsA("BasePart") and not isCharPart(p) then
+        if p:IsA("BasePart") and not isCharPart(p) then
             singleSel = p
             saveOrig(p)
             pcall(function() p.Color=C.sel p.Transparency=0.3 end)
             EPPartName.Text = p.Name.." ("..math.floor(p.Size.X).."x"..math.floor(p.Size.Y).."x"..math.floor(p.Size.Z)..")"
             EPTitle.Text = p.Name
-            EditPanel.Position = UDim2.new(0, math.min(mp.X+16, Camera.ViewportSize.X-270), 0, math.min(mp.Y-16, Camera.ViewportSize.Y-350))
+            local mp = UserInputService:GetMouseLocation()
+            EditPanel.Position = UDim2.new(0,math.min(mp.X+16,Camera.ViewportSize.X-280),0,math.min(mp.Y-16,Camera.ViewportSize.Y-410))
             EditPanel.Visible = true
         else
             EditPanel.Visible = false
         end
 
     elseif selectMode == "multi" then
-        if p and p:IsA("BasePart") and not isCharPart(p) then
+        if p:IsA("BasePart") and not isCharPart(p) then
             if isInMulti(p) then
                 removeMulti(p)
                 if #multiSel == 0 then EditPanel.Visible = false end
             else
                 addMulti(p)
-                EPTitle.Text = #multiSel.." parts"
-                EPPartName.Text = "Multi-select: "..#multiSel.." part(s)"
-                EditPanel.Position = UDim2.new(0, math.min(mp.X+16, Camera.ViewportSize.X-270), 0, math.min(mp.Y-16, Camera.ViewportSize.Y-350))
+                EPTitle.Text = #multiSel.." parts selected"
+                EPPartName.Text = "Latest: "..p.Name
+                local mp = UserInputService:GetMouseLocation()
+                EditPanel.Position = UDim2.new(0,math.min(mp.X+16,Camera.ViewportSize.X-280),0,math.min(mp.Y-16,Camera.ViewportSize.Y-410))
                 EditPanel.Visible = true
             end
         end
     end
 end)
 
-notify("Part Editor", "Loaded! Click Part Editor to enable, triangle for select mode.")
+notify("Part Editor", "Loaded! Click Part Editor pill to enable.")
 print("[Part Editor v3] Loaded!")
