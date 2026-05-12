@@ -203,51 +203,19 @@ local function newSectionLabel(parent, y, text, z)
 end
 
 -- =====================
--- EXPLORER STYLE ROW (like Roblox Studio)
 -- =====================
-local ExplorerRow = newFrame(gui, UDim2.new(0,200,0,30), UDim2.new(0,10,0.5,-15), C.bg, 10)
-newStroke(ExplorerRow, Color3.fromRGB(50,50,70), 1)
-makeDraggable(ExplorerRow)
+-- PART EDITOR PILL (matches spawner style)
+-- =====================
+local Pill = newFrame(gui, UDim2.new(0,180,0,38), UDim2.new(0,20,0.5,-48), C.bg, 10)
+newStroke(Pill, Color3.fromRGB(50,50,70), 1.5)
+makeDraggable(Pill)
 
--- Triangle button (left side, toggles editor on/off and spins)
-local TriBtn = Instance.new("TextButton")
-TriBtn.Size = UDim2.new(0,24,1,0)
-TriBtn.Position = UDim2.new(0,0,0,0)
-TriBtn.BackgroundTransparency = 1
-TriBtn.TextColor3 = C.sub
-TriBtn.Font = Enum.Font.GothamBold
-TriBtn.TextSize = 12
-TriBtn.Text = "▶"
-TriBtn.ZIndex = 12
-TriBtn.Parent = ExplorerRow
+local PillBtn = newBtn(Pill, UDim2.new(1,0,1,0), UDim2.new(0,0,0,0),
+    "✏️  Part Editor: OFF", C.bg, 11)
+PillBtn.TextColor3 = C.sub
 
--- Icon
-local RowIcon = Instance.new("TextLabel")
-RowIcon.Size = UDim2.new(0,20,1,0)
-RowIcon.Position = UDim2.new(0,26,0,0)
-RowIcon.BackgroundTransparency = 1
-RowIcon.TextColor3 = C.accent
-RowIcon.Font = Enum.Font.GothamBold
-RowIcon.TextSize = 13
-RowIcon.Text = "✏️"
-RowIcon.ZIndex = 12
-RowIcon.Parent = ExplorerRow
-
--- Label (clicking toggles editor)
-local RowLabel = Instance.new("TextButton")
-RowLabel.Size = UDim2.new(1,-50,1,0)
-RowLabel.Position = UDim2.new(0,48,0,0)
-RowLabel.BackgroundTransparency = 1
-RowLabel.TextColor3 = C.text
-RowLabel.Font = Enum.Font.GothamBold
-RowLabel.TextSize = 12
-RowLabel.Text = "Part Editor"
-RowLabel.TextXAlignment = Enum.TextXAlignment.Left
-RowLabel.ZIndex = 12
-RowLabel.Parent = ExplorerRow
-
--- Dropdown panel for select mode
-local SelectDropdown = newFrame(gui, UDim2.new(0,180,0,72), UDim2.new(0,10,0.5,20), C.bg, 30)
+-- Dropdown for select mode (opens below pill)
+local SelectDropdown = newFrame(gui, UDim2.new(0,180,0,72), UDim2.new(0,20,0.5,0), C.bg, 30)
 SelectDropdown.Visible = false
 newStroke(SelectDropdown, C.accent, 1.5)
 
@@ -256,23 +224,19 @@ local ddSingle = newBtn(SelectDropdown, UDim2.new(1,-8,0,28), UDim2.new(0,4,0,4)
 local ddMulti = newBtn(SelectDropdown, UDim2.new(1,-8,0,28), UDim2.new(0,4,0,36),
     "    Multi Select", C.row, 31)
 ddSingle.TextXAlignment = Enum.TextXAlignment.Left
-ddMulti.TextXAlignment = Enum.TextXAlignment.Left
+ddMulti.TextXAlignment  = Enum.TextXAlignment.Left
 ddSingle.Font = Enum.Font.GothamBold
-ddMulti.Font = Enum.Font.GothamBold
+ddMulti.Font  = Enum.Font.GothamBold
 ddSingle.TextSize = 11
-ddMulti.TextSize = 11
+ddMulti.TextSize  = 11
 
 local function updateSelectUI()
     if selectMode == "single" then
-        ddSingle.Text = "▶  Single Select"
-        ddSingle.BackgroundColor3 = C.blue
-        ddMulti.Text = "    Multi Select"
-        ddMulti.BackgroundColor3 = C.row
+        ddSingle.Text = "▶  Single Select" ddSingle.BackgroundColor3 = C.blue
+        ddMulti.Text  = "    Multi Select" ddMulti.BackgroundColor3  = C.row
     else
-        ddSingle.Text = "    Single Select"
-        ddSingle.BackgroundColor3 = C.row
-        ddMulti.Text = "▶  Multi Select"
-        ddMulti.BackgroundColor3 = C.blue
+        ddSingle.Text = "    Single Select" ddSingle.BackgroundColor3 = C.row
+        ddMulti.Text  = "▶  Multi Select"  ddMulti.BackgroundColor3  = C.blue
     end
 end
 updateSelectUI()
@@ -282,37 +246,35 @@ ddSingle.MouseButton1Click:Connect(function()
     if EditPanel then EditPanel.Visible = false end
     updateSelectUI()
     SelectDropdown.Visible = false
-    dropdownOpen = false
-    TriBtn.Text = "▶"
-    notify("Part Editor","Single Select")
+    notify("Part Editor", "Single Select")
 end)
-
 ddMulti.MouseButton1Click:Connect(function()
     selectMode = "multi" clearAll()
     if EditPanel then EditPanel.Visible = false end
     updateSelectUI()
     SelectDropdown.Visible = false
-    dropdownOpen = false
-    TriBtn.Text = "▶"
-    notify("Part Editor","Multi Select")
+    notify("Part Editor", "Multi Select — click parts to add/remove")
 end)
 
--- Triangle toggles dropdown
+-- Mode dropdown triangle button (right side of pill)
+local TriBtn = newBtn(Pill, UDim2.new(0,30,1,0), UDim2.new(1,-30,0,0), "▼", C.row, 12)
+TriBtn.TextSize = 10
 TriBtn.MouseButton1Click:Connect(function()
     SelectDropdown.Visible = not SelectDropdown.Visible
-    dropdownOpen = SelectDropdown.Visible
-    if SelectDropdown.Visible then
-        local ap = ExplorerRow.AbsolutePosition
-        local as = ExplorerRow.AbsoluteSize
-        SelectDropdown.Position = UDim2.new(0, ap.X, 0, ap.Y + as.Y + 4)
-        TriBtn.Text = "▼"
-    else
-        TriBtn.Text = "▶"
-    end
+    -- Position below pill
+    local ap = Pill.AbsolutePosition
+    local as = Pill.AbsoluteSize
+    SelectDropdown.Position = UDim2.new(0, ap.X, 0, ap.Y + as.Y + 4)
 end)
 
--- Row label toggles editor on/off
-RowLabel.MouseButton1Click:Connect(function()
+-- Close dropdown when clicking elsewhere
+UserInputService.InputBegan:Connect(function(i)
+    if i.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+    task.wait()
+    if SelectDropdown.Visible then SelectDropdown.Visible = false end
+end)
+
+PillBtn.MouseButton1Click:Connect(function()
     editorOn = not editorOn
     if editorOn then
         -- Close spawner
@@ -320,33 +282,22 @@ RowLabel.MouseButton1Click:Connect(function()
         SpawnPillBtn.Text = "➕  Part Spawner: OFF"
         SpawnPillBtn.TextColor3 = C.sub
         -- Open editor
-        RowLabel.TextColor3 = C.accent
-        ExplorerRow.BackgroundColor3 = Color3.fromRGB(20,20,36)
-        newStroke(ExplorerRow, C.accent, 1.5)
-        TriBtn.TextColor3 = C.accent
+        PillBtn.Text = "✏️  Part Editor: ON"
+        PillBtn.TextColor3 = C.accent
+        newStroke(Pill, C.accent, 1.5)
     else
-        RowLabel.TextColor3 = C.text
-        ExplorerRow.BackgroundColor3 = C.bg
-        newStroke(ExplorerRow, Color3.fromRGB(50,50,70), 1)
-        TriBtn.TextColor3 = C.sub
+        PillBtn.Text = "✏️  Part Editor: OFF"
+        PillBtn.TextColor3 = C.sub
+        newStroke(Pill, Color3.fromRGB(50,50,70), 1.5)
         clearAll()
         hoveredPart = nil
         if EditPanel then EditPanel.Visible = false end
         SelectDropdown.Visible = false
-        TriBtn.Text = "▶"
     end
 end)
 
--- Close dropdown when clicking elsewhere
-UserInputService.InputBegan:Connect(function(i)
-    if i.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-    task.wait()
-    if SelectDropdown.Visible then
-        SelectDropdown.Visible = false
-        TriBtn.Text = "▶"
-    end
-end)
-
+-- =====================
+-- EDIT PANEL (opens on click)
 -- =====================
 -- EDIT PANEL (opens on click)
 -- =====================
@@ -624,11 +575,9 @@ SpawnPillBtn.MouseButton1Click:Connect(function()
         -- Close editor first
         if editorOn then
             editorOn = false
-            RowLabel.TextColor3 = C.text
-            ExplorerRow.BackgroundColor3 = C.bg
-            newStroke(ExplorerRow, Color3.fromRGB(50,50,70), 1)
-            TriBtn.TextColor3 = C.sub
-            TriBtn.Text = "▶"
+            PillBtn.Text = "✏️  Part Editor: OFF"
+            PillBtn.TextColor3 = C.sub
+            newStroke(Pill, Color3.fromRGB(50,50,70), 1.5)
             clearAll()
             hoveredPart = nil
             if EditPanel then EditPanel.Visible = false end
