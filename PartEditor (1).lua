@@ -46,7 +46,7 @@ local singleSel      = nil
 local multiSel       = {}
 local origData       = {}
 local stepValue      = 1
-local transformMode  = "move"
+local transformMode  = "none"
 local dropdownOpen   = false
 
 local spawnerFolder  = Instance.new("Folder")
@@ -296,7 +296,7 @@ for i, m in ipairs({"Move","Resize","Rotate"}) do
             if #targets > 0 then buildHandles(targets[1]) end
         end
     end)
-    if m == "Move" then b.BackgroundColor3 = C.blue end
+    if m == "Move" then b.BackgroundColor3 = C.row end -- start with none selected
 end
 
 local axColors = {X=Color3.fromRGB(220,60,60), Y=Color3.fromRGB(60,200,60), Z=Color3.fromRGB(60,100,220)}
@@ -633,6 +633,17 @@ local function hp(name, col, size, cf)
     p.CFrame     = cf
     p.CastShadow = false
     p.Parent     = handlesFolder
+
+    -- Make visible through parts using Highlight
+    local hl = Instance.new("Highlight")
+    hl.Adornee          = p
+    hl.FillColor        = col.Color
+    hl.OutlineColor     = col.Color
+    hl.FillTransparency = 0
+    hl.OutlineTransparency = 0
+    hl.DepthMode        = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Parent           = p
+
     table.insert(handleParts, p)
     return p
 end
@@ -854,29 +865,51 @@ UserInputService.InputBegan:Connect(function(input, proc)
             if singleSel then restoreOrig(singleSel) singleSel = nil end
             EditPanel.Visible = false
             clearHandles()
+            lastHandleTarget = nil
         end
         return
     end
-    if p:IsDescendantOf(gui) then return end
-    if p:IsDescendantOf(handlesFolder) then return end -- ignore handle parts
+    -- Check if clicking a handle first
+    if p and p:IsDescendantOf(handlesFolder) then return end
 
     if selectMode == "single" then
-        if singleSel then restoreOrig(singleSel) singleSel = nil end
+        -- Only deselect if clicking sky (nil) or a different valid part
+        if not p then
+            -- clicked sky — deselect
+            if singleSel then restoreOrig(singleSel) singleSel = nil end
+            EditPanel.Visible = false
+            clearHandles()
+            lastHandleTarget = nil
+            return
+        end
+        if p:IsDescendantOf(gui) then return end
 
         if p:IsA("BasePart") and not isCharPart(p) then
+            -- Switching to a different part
+            if singleSel and singleSel ~= p then restoreOrig(singleSel) end
             singleSel = p
             saveOrig(p)
             pcall(function() p.Color=C.sel p.Transparency=0.3 end)
             EPPartName.Text = p.Name.." ("..math.floor(p.Size.X).."x"..math.floor(p.Size.Y).."x"..math.floor(p.Size.Z)..")"
             EPTitle.Text = p.Name
-            local mp = UserInputService:GetMouseLocation()
-            EditPanel.Position = UDim2.new(0,math.min(mp.X+16,Camera.ViewportSize.X-280),0,math.min(mp.Y-16,Camera.ViewportSize.Y-410))
+            -- Only reposition panel if it's not already visible
+            if not EditPanel.Visible then
+                local mp = UserInputService:GetMouseLocation()
+                -- Only reposition if panel is not already visible
+                if not EditPanel.Visible then
+                    EditPanel.Position = UDim2.new(0,
+                        math.clamp(mp.X+16, 0, Camera.ViewportSize.X-280),
+                        0,
+                        math.clamp(mp.Y-200, 0, Camera.ViewportSize.Y-410)
+                    )
+                end
+            end
             EditPanel.Visible = true
-        else
-            EditPanel.Visible = false
+            lastHandleTarget = nil -- force handle rebuild
         end
 
     elseif selectMode == "multi" then
+        if not p or p:IsDescendantOf(gui) then return end
         if p:IsA("BasePart") and not isCharPart(p) then
             if isInMulti(p) then
                 removeMulti(p)
@@ -885,12 +918,44 @@ UserInputService.InputBegan:Connect(function(input, proc)
                 addMulti(p)
                 EPTitle.Text = #multiSel.." parts selected"
                 EPPartName.Text = "Latest: "..p.Name
-                local mp = UserInputService:GetMouseLocation()
-                EditPanel.Position = UDim2.new(0,math.min(mp.X+16,Camera.ViewportSize.X-280),0,math.min(mp.Y-16,Camera.ViewportSize.Y-410))
+                if not EditPanel.Visible then
+                    local mp = UserInputService:GetMouseLocation()
+                    -- Only reposition if panel is not already visible
+                if not EditPanel.Visible then
+                    EditPanel.Position = UDim2.new(0,
+                        math.clamp(mp.X+16, 0, Camera.ViewportSize.X-280),
+                        0,
+                        math.clamp(mp.Y-200, 0, Camera.ViewportSize.Y-410)
+                    )
+                end
+                end
                 EditPanel.Visible = true
             end
+            lastHandleTarget = nil
         end
     end
+end)
+
+-- Delete key to remove selected parts
+UserInputService.InputBegan:Connect(function(input, proc)
+    if proc then return end
+    if not editorOn then return end
+    if input.KeyCode ~= Enum.KeyCode.Delete and input.KeyCode ~= Enum.KeyCode.Backspace then return end
+    local targets = getTargets()
+    if #targets == 0 then return end
+    local count = 0
+    for _, p in ipairs(targets) do
+        pcall(function()
+            for _, v in pairs(p:GetDescendants()) do
+                if v:IsA("Script") or v:IsA("LocalScript") or v:IsA("ModuleScript") then v:Destroy() end
+            end
+            p:Destroy() count = count + 1
+        end)
+    end
+    clearAll()
+    clearHandles()
+    EditPanel.Visible = false
+    notify("Part Editor", "Deleted "..count.." part(s)")
 end)
 
 -- Connect pill button now that all functions are declared
