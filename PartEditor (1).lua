@@ -282,9 +282,19 @@ for i, m in ipairs({"Move","Resize","Rotate"}) do
     b.TextSize = 11
     table.insert(tmBtns, b)
     b.MouseButton1Click:Connect(function()
-        transformMode = m:lower()
-        for _, mb in ipairs(tmBtns) do mb.BackgroundColor3 = C.row end
-        b.BackgroundColor3 = C.blue
+        if transformMode == m:lower() then
+            -- clicking active mode turns it off
+            transformMode = "none"
+            for _, mb in ipairs(tmBtns) do mb.BackgroundColor3 = C.row end
+            clearHandles()
+        else
+            transformMode = m:lower()
+            for _, mb in ipairs(tmBtns) do mb.BackgroundColor3 = C.row end
+            b.BackgroundColor3 = C.blue
+            -- rebuild handles for current target
+            local targets = getTargets()
+            if #targets > 0 then buildHandles(targets[1]) end
+        end
     end)
     if m == "Move" then b.BackgroundColor3 = C.blue end
 end
@@ -575,210 +585,208 @@ newBtn(SpawnPanel,UDim2.new(1,-16,0,28),UDim2.new(0,8,0,270),
 
 -- =====================
 -- =====================
+-- =====================
 -- 3D TRANSFORM HANDLES
--- Studio-style arrows (move), rings (rotate), squares (resize)
 -- =====================
 local handlesFolder = Instance.new("Folder")
 handlesFolder.Name = "PartEditorHandles"
 handlesFolder.Parent = workspace
 
-local activeHandles = {}
+local handleParts = {}      -- all current handle parts
 local handleDragging = false
-local handleAxis = nil
-local handleStartPos = nil
-local handleStartCF = nil
-local handleStartSize = nil
-local handleStartMousePos = nil
+local handleDragAxis = nil
+local handleDragNeg  = false
+local handleDragStart = nil -- mouse Y at drag start
+local handleDragStartCF   = nil
+local handleDragStartSize = nil
+local handleDragConn = nil
+local handlesVisible = false
 
-local HANDLE_SIZE = 0.4
-local HANDLE_LENGTH = 3.5
-local ARROW_SIZE = 0.7
+local SHAFT_W   = 0.25
+local SHAFT_L   = 2.8
+local TIP_W     = 0.55
+local RING_R    = 0   -- set per part
+local RING_DOTS = 20
+local DOT_W     = 0.22
+local SQ_W      = 0.45
 
-local AX_COLORS = {
+local AX_COL = {
     X = BrickColor.new("Bright red"),
     Y = BrickColor.new("Lime green"),
     Z = BrickColor.new("Bright blue"),
 }
-local AX_VECTORS = {
+local AX_VEC = {
     X = Vector3.new(1,0,0),
     Y = Vector3.new(0,1,0),
     Z = Vector3.new(0,0,1),
 }
 
-local function makeHandlePart(parent, name, color, size, cframe)
+local function hp(name, col, size, cf)
     local p = Instance.new("Part")
-    p.Name = name
-    p.Anchored = true
+    p.Name       = name
+    p.Anchored   = true
     p.CanCollide = false
-    p.CanQuery = true
-    p.BrickColor = color
-    p.Material = Enum.Material.Neon
-    p.Size = size
-    p.CFrame = cframe
+    p.CanQuery   = true
+    p.BrickColor = col
+    p.Material   = Enum.Material.Neon
+    p.Size       = size
+    p.CFrame     = cf
     p.CastShadow = false
-    p.Parent = parent
+    p.Parent     = handlesFolder
+    table.insert(handleParts, p)
     return p
 end
 
 local function clearHandles()
-    for _, h in pairs(activeHandles) do
-        pcall(function() h:Destroy() end)
-    end
-    activeHandles = {}
-    handleDragging = false
+    for _, p in ipairs(handleParts) do pcall(function() p:Destroy() end) end
+    handleParts = {}
+    handlesVisible = false
 end
 
-local function buildHandles(target)
+local function buildMoveHandles(target)
     clearHandles()
     if not target or not target.Parent then return end
+    local cf = target.CFrame
+    local sz = target.Size
+    local ext = math.max(sz.X, sz.Y, sz.Z) * 0.5 + 0.3
 
+    for _, ax in ipairs({"X","Y","Z"}) do
+        local col = AX_COL[ax]
+        local vec = AX_VEC[ax]
+        -- shaft
+        local shaftCF = cf * CFrame.new(vec * (ext + SHAFT_L*0.5))
+        local shaftSz = Vector3.new(
+            ax=="X" and SHAFT_L or SHAFT_W,
+            ax=="Y" and SHAFT_L or SHAFT_W,
+            ax=="Z" and SHAFT_L or SHAFT_W
+        )
+        hp("H_"..ax, col, shaftSz, shaftCF)
+        -- tip ball
+        local tipCF = cf * CFrame.new(vec * (ext + SHAFT_L + TIP_W*0.5))
+        hp("H_T"..ax, col, Vector3.new(TIP_W,TIP_W,TIP_W), tipCF)
+        Instance.new("SpecialMesh",handleParts[#handleParts]).MeshType = Enum.MeshType.FileMesh
+        handleParts[#handleParts]:FindFirstChildOfClass("SpecialMesh"):Destroy()
+        -- just ball shape
+        handleParts[#handleParts].Shape = Enum.PartType.Ball
+    end
+    handlesVisible = true
+end
+
+local function buildResizeHandles(target)
+    clearHandles()
+    if not target or not target.Parent then return end
     local cf = target.CFrame
     local sz = target.Size
 
-    for _, axis in ipairs({"X","Y","Z"}) do
-        local col = AX_COLORS[axis]
-        local vec = AX_VECTORS[axis]
-        local offset = cf:VectorToWorldSpace(vec * (sz * 0.5 + Vector3.new(HANDLE_LENGTH*0.5,HANDLE_LENGTH*0.5,HANDLE_LENGTH*0.5)))
-
-        if transformMode == "move" then
-            -- Shaft
-            local shaft = makeHandlePart(handlesFolder, "Handle_"..axis,
-                col,
-                Vector3.new(
-                    axis=="X" and HANDLE_LENGTH or HANDLE_SIZE,
-                    axis=="Y" and HANDLE_LENGTH or HANDLE_SIZE,
-                    axis=="Z" and HANDLE_LENGTH or HANDLE_SIZE
-                ),
-                CFrame.new(cf.Position + cf:VectorToWorldSpace(vec*(sz/2+Vector3.new(HANDLE_LENGTH/2,HANDLE_LENGTH/2,HANDLE_LENGTH/2))))
-            )
-            shaft.CFrame = CFrame.new(cf.Position) * (cf - cf.Position) * CFrame.new(vec * (math.max(sz.X,sz.Y,sz.Z)*0.5 + HANDLE_LENGTH*0.5 + 0.5))
-            table.insert(activeHandles, shaft)
-
-            -- Arrow tip
-            local tip = makeHandlePart(handlesFolder, "HandleTip_"..axis,
-                col, Vector3.new(ARROW_SIZE,ARROW_SIZE,ARROW_SIZE),
-                shaft.CFrame * CFrame.new(0,0,0)
-            )
-            tip.CFrame = shaft.CFrame * CFrame.new(
-                axis=="X" and HANDLE_LENGTH*0.5 or 0,
-                axis=="Y" and HANDLE_LENGTH*0.5 or 0,
-                axis=="Z" and HANDLE_LENGTH*0.5 or 0
-            )
-            tip.Shape = Enum.PartType.Ball
-            table.insert(activeHandles, tip)
-
-        elseif transformMode == "resize" then
-            -- Square handle at each face
-            local sq = makeHandlePart(handlesFolder, "Handle_"..axis,
-                col, Vector3.new(ARROW_SIZE,ARROW_SIZE,ARROW_SIZE),
-                cf * CFrame.new(vec * (math.max(sz.X,sz.Y,sz.Z)*0.5 + 0.8))
-            )
-            sq.CFrame = cf * CFrame.new(
-                axis=="X" and (sz.X*0.5+0.8) or 0,
-                axis=="Y" and (sz.Y*0.5+0.8) or 0,
-                axis=="Z" and (sz.Z*0.5+0.8) or 0
-            )
-            table.insert(activeHandles, sq)
-
-            -- Negative side
-            local sqN = makeHandlePart(handlesFolder, "Handle_N"..axis,
-                col, Vector3.new(ARROW_SIZE,ARROW_SIZE,ARROW_SIZE),
-                cf * CFrame.new(-vec * (math.max(sz.X,sz.Y,sz.Z)*0.5 + 0.8))
-            )
-            sqN.CFrame = cf * CFrame.new(
-                axis=="X" and -(sz.X*0.5+0.8) or 0,
-                axis=="Y" and -(sz.Y*0.5+0.8) or 0,
-                axis=="Z" and -(sz.Z*0.5+0.8) or 0
-            )
-            table.insert(activeHandles, sqN)
-
-        elseif transformMode == "rotate" then
-            -- Ring of small spheres around each axis
-            local radius = math.max(sz.X,sz.Y,sz.Z)*0.5 + 1.2
-            local steps = 16
-            for s = 0, steps-1 do
-                local angle = (s/steps) * math.pi * 2
-                local pos
-                if axis == "X" then
-                    pos = cf * CFrame.new(0, math.cos(angle)*radius, math.sin(angle)*radius)
-                elseif axis == "Y" then
-                    pos = cf * CFrame.new(math.cos(angle)*radius, 0, math.sin(angle)*radius)
-                else
-                    pos = cf * CFrame.new(math.cos(angle)*radius, math.sin(angle)*radius, 0)
-                end
-                local dot = makeHandlePart(handlesFolder, "Handle_"..axis,
-                    col, Vector3.new(0.25,0.25,0.25), pos)
-                dot.Shape = Enum.PartType.Ball
-                table.insert(activeHandles, dot)
-            end
+    for _, ax in ipairs({"X","Y","Z"}) do
+        local col = AX_COL[ax]
+        local vec = AX_VEC[ax]
+        for _, sign in ipairs({1,-1}) do
+            local offset = ax=="X" and Vector3.new(sz.X*0.5+0.6,0,0)
+                        or ax=="Y" and Vector3.new(0,sz.Y*0.5+0.6,0)
+                        or Vector3.new(0,0,sz.Z*0.5+0.6)
+            local sqCF = cf * CFrame.new(offset * sign)
+            local name = sign==1 and "H_"..ax or "H_N"..ax
+            local sq = hp(name, col, Vector3.new(SQ_W,SQ_W,SQ_W), sqCF)
         end
     end
+    handlesVisible = true
 end
 
--- Handle dragging
-local handleDragConn = nil
+local function buildRotateHandles(target)
+    clearHandles()
+    if not target or not target.Parent then return end
+    local cf = target.CFrame
+    local sz = target.Size
+    local radius = math.max(sz.X, sz.Y, sz.Z) * 0.5 + 1.1
 
-local function getHandleAxis(part)
-    if not part or not part.Name:find("Handle_") then return nil end
-    local name = part.Name
-    local neg = name:find("_N") ~= nil
-    local axis = name:sub(-1)
-    if axis ~= "X" and axis ~= "Y" and axis ~= "Z" then return nil, nil end
-    return axis, neg
+    for _, ax in ipairs({"X","Y","Z"}) do
+        local col = AX_COL[ax]
+        for s = 0, RING_DOTS-1 do
+            local angle = (s/RING_DOTS) * math.pi * 2
+            local offset
+            if ax=="X" then offset = Vector3.new(0, math.cos(angle)*radius, math.sin(angle)*radius)
+            elseif ax=="Y" then offset = Vector3.new(math.cos(angle)*radius, 0, math.sin(angle)*radius)
+            else offset = Vector3.new(math.cos(angle)*radius, math.sin(angle)*radius, 0) end
+            local dotCF = cf * CFrame.new(offset)
+            local dot = hp("H_"..ax, col, Vector3.new(DOT_W,DOT_W,DOT_W), dotCF)
+            dot.Shape = Enum.PartType.Ball
+        end
+    end
+    handlesVisible = true
 end
 
+local function buildHandles(target)
+    if not target then clearHandles() return end
+    if transformMode == "move"   then buildMoveHandles(target)
+    elseif transformMode == "resize" then buildResizeHandles(target)
+    elseif transformMode == "rotate" then buildRotateHandles(target)
+    else clearHandles() end
+end
+
+local function updateHandlePositions(target)
+    -- Rebuild each frame when dragging
+    if not target or not target.Parent then return end
+    if transformMode == "move" then buildMoveHandles(target)
+    elseif transformMode == "resize" then buildResizeHandles(target)
+    elseif transformMode == "rotate" then buildRotateHandles(target) end
+end
+
+-- Handle drag input
 UserInputService.InputBegan:Connect(function(input)
     if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
     if not editorOn then return end
+    if transformMode == "none" then return end
+    local hit = Mouse.Target
+    if not hit or not hit:IsDescendantOf(handlesFolder) then return end
+
+    local name = hit.Name
+    local ax = name:sub(-1)
+    if ax ~= "X" and ax ~= "Y" and ax ~= "Z" then return end
+    local neg = name:find("H_N") ~= nil
+
     local target = getTargets()[1]
     if not target then return end
 
-    local hit = Mouse.Target
-    local axis, neg = getHandleAxis(hit)
-    if not axis then return end
-
-    handleDragging = true
-    handleAxis = axis
-    handleStartCF = target.CFrame
-    handleStartSize = target.Size
-    handleStartMousePos = UserInputService:GetMouseLocation()
+    handleDragging   = true
+    handleDragAxis   = ax
+    handleDragNeg    = neg
+    handleDragStart  = UserInputService:GetMouseLocation()
+    handleDragStartCF   = target.CFrame
+    handleDragStartSize = target.Size
 
     if handleDragConn then handleDragConn:Disconnect() end
     handleDragConn = RunService.RenderStepped:Connect(function()
         if not handleDragging then
-            handleDragConn:Disconnect() handleDragConn = nil return
+            if handleDragConn then handleDragConn:Disconnect() handleDragConn=nil end
+            return
         end
-        local target2 = getTargets()[1]
-        if not target2 then return end
+        local t = getTargets()[1]
+        if not t then return end
 
-        local curMouse = UserInputService:GetMouseLocation()
-        local delta = (curMouse - handleStartMousePos)
-        local amount = (axis=="X" and delta.X or axis=="Y" and -delta.Y or delta.X) * 0.05
+        local cur  = UserInputService:GetMouseLocation()
+        local diff = cur - handleDragStart
+        -- Use X delta for X/Z, Y delta (inverted) for Y
+        local raw  = handleDragAxis=="Y" and -diff.Y or diff.X
+        local amt  = raw * 0.04 * stepValue
+        local sign = handleDragNeg and -1 or 1
+        local vec  = AX_VEC[handleDragAxis]
 
         pcall(function()
             if transformMode == "move" then
-                local v = AX_VECTORS[axis]
-                target2.CFrame = handleStartCF + Camera.CFrame:VectorToWorldSpace(
-                    Vector3.new(
-                        axis=="X" and amount or 0,
-                        axis=="Y" and amount or 0,
-                        axis=="Z" and amount or 0
-                    )
-                ) * Vector3.new(0,0,0)
-                -- simpler: just move along world axis
-                target2.CFrame = handleStartCF + v * amount * (neg and -1 or 1) * 10
+                t.CFrame = handleDragStartCF + vec * amt * sign
             elseif transformMode == "resize" then
-                local v = AX_VECTORS[axis]
-                local newSize = handleStartSize + v * amount * (neg and -1 or 1) * 10
-                target2.Size = Vector3.new(math.max(0.1,newSize.X),math.max(0.1,newSize.Y),math.max(0.1,newSize.Z))
+                local newSz = handleDragStartSize + vec * amt * sign * 2
+                t.Size = Vector3.new(math.max(0.1,newSz.X),math.max(0.1,newSz.Y),math.max(0.1,newSz.Z))
             elseif transformMode == "rotate" then
-                local rad = amount * 2
-                local rot = axis=="X" and CFrame.Angles(rad,0,0) or axis=="Y" and CFrame.Angles(0,rad,0) or CFrame.Angles(0,0,rad)
-                target2.CFrame = handleStartCF * rot
+                local rad = amt * sign * 0.8
+                local rot = handleDragAxis=="X" and CFrame.Angles(rad,0,0)
+                         or handleDragAxis=="Y" and CFrame.Angles(0,rad,0)
+                         or CFrame.Angles(0,0,rad)
+                t.CFrame = handleDragStartCF * rot
             end
         end)
-
-        buildHandles(target2)
+        updateHandlePositions(t)
     end)
 end)
 
@@ -788,26 +796,32 @@ UserInputService.InputEnded:Connect(function(input)
     end
 end)
 
--- =====================
 -- HOVER LOOP
 -- =====================
+local lastHandleTarget = nil
 RunService.RenderStepped:Connect(function()
     if not editorOn then
-        clearHandles()
+        if handlesVisible then clearHandles() end
         return
     end
 
-    -- Update handles for selected part
+    -- Rebuild handles only when selection or mode changes
     local targets = getTargets()
-    if #targets > 0 then
-        buildHandles(targets[1])
-    else
-        clearHandles()
+    local curTarget = #targets > 0 and targets[1] or nil
+    if curTarget ~= lastHandleTarget then
+        lastHandleTarget = curTarget
+        if curTarget and transformMode ~= "none" then
+            buildHandles(curTarget)
+        else
+            clearHandles()
+        end
     end
 
     if dropdownOpen then return end
     local p = rayPart()
-    if p and p:IsA("BasePart") and not isCharPart(p) and not p:IsDescendantOf(handlesFolder) then
+    if p and p:IsDescendantOf(handlesFolder) then return end
+
+    if p and p:IsA("BasePart") and not isCharPart(p) then
         if p ~= hoveredPart then
             if hoveredPart and hoveredPart ~= singleSel and not isInMulti(hoveredPart) then
                 restoreOrig(hoveredPart)
@@ -824,6 +838,7 @@ RunService.RenderStepped:Connect(function()
         hoveredPart = nil
     end
 end)
+
 
 -- =====================
 -- CLICK LOGIC
